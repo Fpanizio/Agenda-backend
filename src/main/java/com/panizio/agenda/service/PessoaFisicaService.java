@@ -4,6 +4,8 @@ import com.panizio.agenda.exception.ValidacaoException;
 import com.panizio.agenda.model.PessoaFisica;
 import com.panizio.agenda.repository.PessoaFisicaRepository;
 import com.panizio.agenda.utils.ValidacaoUtils;
+
+import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -31,7 +33,7 @@ public class PessoaFisicaService {
   }
 
   public PessoaFisica buscarUsuarioPorCpf(String cpf) {
-    return pessoaFisicaRepository.findById(limparCpf(cpf)).orElse(null);
+    return pessoaFisicaRepository.findById(limpar(cpf)).orElse(null);
   }
 
   public List<PessoaFisica> filtrarPorCpf(String prefixo) {
@@ -39,24 +41,56 @@ public class PessoaFisicaService {
   }
 
   public PessoaFisica salvarUsuario(PessoaFisica pessoaFisica) {
-    pessoaFisica.setCpf(limparCpf(pessoaFisica.getCpf()));
+    pessoaFisica.setCpf(limpar(pessoaFisica.getCpf()));
+
+    // Validação e busca de coordenadas
+    if (!ValidacaoUtils.validarCEP(pessoaFisica.getCep())) {
+      throw new ValidacaoException(Map.of("cep", "CEP inválido"));
+    }
+
+    try {
+      Point coordenadas = ValidacaoUtils.buscarCoordenadasPorCEP(pessoaFisica.getCep());
+      if (coordenadas != null) {
+        pessoaFisica.setCoordenadas(coordenadas);
+        System.out.println("TEST DE COORDENADA -> " + coordenadas);
+      }
+    } catch (ValidacaoException e) {
+      throw e;
+    }
+
     validarPessoaFisica(pessoaFisica, true);
 
     PessoaFisica savedPessoa = pessoaFisicaRepository.save(pessoaFisica);
 
-    emailService.enviarEmailConfirmacao(savedPessoa.getNome(), savedPessoa.getEmail()); 
+    emailService.enviarEmailConfirmacao(savedPessoa.getNome(), savedPessoa.getEmail());
 
     return savedPessoa;
   }
 
-  public PessoaFisica atualizarPessoaFisica(String cpf, PessoaFisica pessoaFisica) {
-    pessoaFisica.setCpf(limparCpf(pessoaFisica.getCpf()));
+  public PessoaFisica atualizarPessoaFisica(String cpf, PessoaFisica novosDados) {
+    novosDados.setCpf(limpar(novosDados.getCpf()));
     PessoaFisica pessoaExistente = pessoaFisicaRepository.findById(cpf)
         .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
 
-    validarCamposUnicos(pessoaFisica, pessoaExistente);
-    validarPessoaFisica(pessoaFisica, false);
-    atualizarCampos(pessoaExistente, pessoaFisica);
+    // Atualiza coordenadas se o CEP mudar
+    if (novosDados.getCep() != null && !novosDados.getCep().equals(pessoaExistente.getCep())) {
+      if (!ValidacaoUtils.validarCEP(novosDados.getCep())) {
+        throw new ValidacaoException(Map.of("cep", "CEP inválido"));
+      }
+
+      try {
+        Point coordenadas = ValidacaoUtils.buscarCoordenadasPorCEP(novosDados.getCep());
+        if (coordenadas != null) {
+          novosDados.setCoordenadas(coordenadas);
+        }
+      } catch (ValidacaoException e) {
+        throw e;
+      }
+    }
+
+    validarCamposUnicos(novosDados, pessoaExistente);
+    validarPessoaFisica(novosDados, false);
+    atualizarCampos(pessoaExistente, novosDados);
 
     return pessoaFisicaRepository.save(pessoaExistente);
   }
@@ -138,7 +172,7 @@ public class PessoaFisicaService {
     }
   }
 
-  private String limparCpf(String cpf) {
-    return cpf != null ? cpf.replaceAll("\\D", "") : null;
+  private String limpar(String data) {
+    return data != null ? data.replaceAll("\\D", "") : null;
   }
 }

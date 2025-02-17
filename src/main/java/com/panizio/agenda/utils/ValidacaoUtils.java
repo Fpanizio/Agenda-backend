@@ -1,13 +1,26 @@
 package com.panizio.agenda.utils;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+
+import com.panizio.agenda.exception.ValidacaoException;
+
+import org.locationtech.jts.geom.Point;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class ValidacaoUtils {
 
@@ -35,19 +48,46 @@ public class ValidacaoUtils {
         return isValid(cleaned, 14, ValidacaoUtils::validarDigitosCNPJ);
     }
 
-    public static boolean validarCEP(String cep) {
+    public static Point buscarCoordenadasPorCEP(String cep) throws ValidacaoException {
         String cleaned = limparNumeros(cep);
-        if (!isValidLength(cleaned, 8))
-            return false;
+        if (cleaned.length() != 8) {
+            throw new ValidacaoException(Map.of("cep", "CEP inválido"));
+        }
 
         try {
-            URL url = new URL("https://viacep.com.br/ws/" + cleaned + "/json/");
+            URL url = new URL("https://nominatim.openstreetmap.org/search?postalcode=" + cleaned + "&format=json");
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
-            return connection.getResponseCode() == HttpURLConnection.HTTP_OK;
-        } catch (IOException e) {
-            return false;
+            connection.setRequestProperty("User-Agent", "SuaAplicacao/1.0");
+
+            if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+
+                JSONArray jsonArray = new JSONArray(response.toString());
+                if (jsonArray.length() > 0) {
+                    JSONObject firstResult = jsonArray.getJSONObject(0);
+                    double lat = firstResult.getDouble("lat");
+                    double lon = firstResult.getDouble("lon");
+
+                    GeometryFactory geometryFactory = new GeometryFactory();
+                    return geometryFactory.createPoint(new Coordinate(lon, lat)); // Atenção à ordem: LONGITUDE
+
+                }
+            }
+        } catch (IOException | JSONException e) {
+            throw new ValidacaoException(Map.of("cep", "Falha ao buscar coordenadas"));
         }
+        throw new ValidacaoException(Map.of("cep", "CEP não encontrado"));
+    }
+
+    public static boolean validarCEP(String cep) {
+        return limparNumeros(cep).length() == 8;
     }
 
     public static boolean validarEmail(String email) {

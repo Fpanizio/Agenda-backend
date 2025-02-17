@@ -6,6 +6,11 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.Objects;
 
+import org.locationtech.jts.geom.Point;
+
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.panizio.agenda.utils.PointSerializer;
+
 @Entity
 public class PessoaFisica {
 
@@ -32,6 +37,9 @@ public class PessoaFisica {
   @NotBlank(message = "Endereço é obrigatório")
   private String endereco;
 
+  @JsonSerialize(using = PointSerializer.class)
+  private Point coordenadas;
+
   public PessoaFisica() {
   }
 
@@ -42,7 +50,8 @@ public class PessoaFisica {
       String telefone,
       String cep,
       String email,
-      String endereco) {
+      String endereco,
+      Point coordenadas) {
     this.cpf = cpf;
     this.nome = nome;
     this.dataNascimento = dataNascimento;
@@ -50,6 +59,7 @@ public class PessoaFisica {
     this.cep = cep;
     this.email = email;
     this.endereco = endereco;
+    this.coordenadas = coordenadas;
   }
 
   public String getCpf() {
@@ -106,6 +116,14 @@ public class PessoaFisica {
 
   public void setEndereco(String endereco) {
     this.endereco = endereco;
+  }
+
+  public Point getCoordenadas() {
+    return coordenadas;
+  }
+
+  public void setCoordenadas(Point coordenadas) {
+    this.coordenadas = coordenadas;
   }
 
   @Override
