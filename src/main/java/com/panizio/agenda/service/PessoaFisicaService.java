@@ -43,7 +43,6 @@ public class PessoaFisicaService {
   public PessoaFisica salvarUsuario(PessoaFisica pessoaFisica) {
     pessoaFisica.setCpf(limpar(pessoaFisica.getCpf()));
 
-    // Validação e busca de coordenadas
     if (!ValidacaoUtils.validarCEP(pessoaFisica.getCep())) {
       throw new ValidacaoException(Map.of("cep", "CEP inválido"));
     }
@@ -52,7 +51,6 @@ public class PessoaFisicaService {
       Point coordenadas = ValidacaoUtils.buscarCoordenadasPorCEP(pessoaFisica.getCep());
       if (coordenadas != null) {
         pessoaFisica.setCoordenadas(coordenadas);
-        System.out.println("TEST DE COORDENADA -> " + coordenadas);
       }
     } catch (ValidacaoException e) {
       throw e;
@@ -72,7 +70,6 @@ public class PessoaFisicaService {
     PessoaFisica pessoaExistente = pessoaFisicaRepository.findById(cpf)
         .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
 
-    // Atualiza coordenadas se o CEP mudar
     if (novosDados.getCep() != null && !novosDados.getCep().equals(pessoaExistente.getCep())) {
       if (!ValidacaoUtils.validarCEP(novosDados.getCep())) {
         throw new ValidacaoException(Map.of("cep", "CEP inválido"));
